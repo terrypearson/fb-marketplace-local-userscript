@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         MarketplaceDeliveryOnly
+// @name         MarketplaceLocalListingsOnly
 // @namespace    http://tampermonkey.net/
 // @version      0.1
-// @description  try to take over the world!
-// @author       You
+// @description  Set Facebook marketplace to load local listings only (No Deliveries)!
+// @author       Terry Pearson
 // @include      https://www.facebook.com/marketplace/*
 // @require      http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js
 // @require      https://gist.github.com/raw/2625891/waitForKeyElements.js
@@ -17,49 +17,76 @@ console.log('MarketplaceDeliveryOnly userscript running...');
 // becomes   https://www.facebook.com/marketplace/atlanta/search/?deliveryMethod=local_pick_up&query=honda&exact=false
 function localListingsOnly() {
 
-        var current_url = window.location.href;
-        // regex to match query e.g. 'honda'
-        const regex_to_get_query = /(?<=https\:\/\/www\.facebook\.com\/marketplace\/.+?\/search\/\?query=).*/;
-        // regex to match beginning portion of url e.g. 'https://www.facebook.com/marketplace/atlanta/search/'
-        const partial_url = current_url.match(/https\:\/\/www\.facebook\.com\/marketplace\/.+?\//);
-        const users_url_query = current_url.match(regex_to_get_query); // e.g. 'honda'
+    var current_url = window.location.href;
+    // regex to match query e.g. 'honda'
+    //var search = location.search.substring(1);
+    //let params = new URLSearchParams(search);
+    //console.log("query: ",params.get("query")); // "foo"
 
-        console.log(current_url, users_url_query);
+    insertParam("deliveryMethod","local_pick_up");
+    return;
 
-        // if the user is in marketplace and makes a search
-        if (users_url_query.length == 1) {
-            const url_final = String(partial_url[0]) +
-                  'search/?deliveryMethod=local_pick_up&query=' +
-                  String(users_url_query[0]) + '&exact=false';
+}
 
-            //console.log('query was: ', users_url_query);
-            //console.log('partial url is: ', partial_url[0]);
-            //console.log('modified URL is: ', url_final);
+function insertParam(key, value) {
 
-            // change the address bar URL to `url_final` and navigate to that page
-            // e.g. https://www.facebook.com/marketplace/atlanta/search/?deliveryMethod=local_pick_up&query=honda&exact=false
-            location.replace(url_final);
+    var search = location.search.substring(1);
+    let searchParams = new URLSearchParams(search);
+    // "foo"
+
+    let theKey = searchParams.get(key);
+    if(theKey != null){
+        //The key already exists, do not replace
+        return;
+    }
+
+    console.log("Adding key of: ",key,"=",value);
+
+
+    key = encodeURIComponent(key);
+    value = encodeURIComponent(value);
+
+    // kvp looks like ['key1=value1', 'key2=value2', ...]
+    var kvp = document.location.search.substr(1).split('&');
+    let i=0;
+
+    for(; i<kvp.length; i++){
+        if (kvp[i].startsWith(key + '=')) {
+            let pair = kvp[i].split('=');
+            pair[1] = value;
+            kvp[i] = pair.join('=');
+            break;
         }
     }
 
+    if(i >= kvp.length){
+        kvp[kvp.length] = [key,value].join('=');
+    }
+
+    // can return this or...
+    let params = kvp.join('&');
+
+    // reload page with new params
+    document.location.search = params;
+}
 // detect DOM changes made by AJAX when the page doesn't reload (e.g. searching for something new in Marketplace)
 function mutationHandler (mutationRecords) {
-      mutationRecords.forEach(function (mutation) {
+    mutationRecords.forEach(function (mutation) {
         if (mutation.type=="childList" && typeof mutation.addedNodes=="object" && mutation.addedNodes.length) {
-          for (let i=0; i<mutation.addedNodes.length; ++i) {
-              //console.log('new node detected!');
-            if (mutation.addedNodes[i].nodeType===1) {
-                //elementMutationHandler(mutation.addedNodes[i]);
-                //test();
-                localListingsOnly();
+            for (let i=0; i<mutation.addedNodes.length; ++i) {
+                //console.log('new node detected!');
+                if (mutation.addedNodes[i].nodeType===1) {
+                    //elementMutationHandler(mutation.addedNodes[i]);
+                    //test();
+                    localListingsOnly();
+                }
             }
-           }
-          }
-          else if (mutation.type == "attributes" && mutation.target.nodeType===1) {
-          // elementMutationHandler(mutation.target);
-               localListingsOnly();
-    }
-  });
+        }
+        else if (mutation.type == "attributes" && mutation.target.nodeType===1) {
+            // elementMutationHandler(mutation.target);
+            localListingsOnly();
+        }
+    });
 }
 
 // start MutationObserver
@@ -71,6 +98,6 @@ myObserver.observe (document, obsConfig);
 
 // reload the page after 10 minutes of inactivity
 setTimeout((function() {
-  myObserver.disconnect();
-  window.location.reload();
+    myObserver.disconnect();
+    window.location.reload();
 }), 600000);
